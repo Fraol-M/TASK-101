@@ -63,7 +63,7 @@ export const applicationService = {
 
   async list(viewer, filters = {}) {
     const isAdmin = viewer.roles?.includes('SYSTEM_ADMIN') || viewer.roles?.includes('PROGRAM_ADMIN');
-    let q = knex('applications').orderBy('submitted_at', 'desc');
+    let q = knex('applications');
 
     if (!isAdmin) {
       q = q.where('account_id', viewer.id);
@@ -74,7 +74,11 @@ export const applicationService = {
     const total = await q.clone().count('id as count').first().then((r) => Number(r.count));
     const page = Number(filters.page) || 1;
     const pageSize = Math.min(Number(filters.pageSize) || 20, 100);
-    const rows = await q.limit(pageSize).offset((page - 1) * pageSize);
+    const rows = await q
+      .clone()
+      .orderBy('submitted_at', 'desc')
+      .limit(pageSize)
+      .offset((page - 1) * pageSize);
 
     return { rows, total };
   },

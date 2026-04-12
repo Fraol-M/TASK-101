@@ -9,11 +9,14 @@ export const savedQueriesService = {
     const page = Number(options.page) || 1;
     const pageSize = Math.min(Number(options.pageSize) || 20, 100);
     const q = knex('search_saved_queries')
-      .where({ account_id: accountId })
-      .orderBy('updated_at', 'desc');
+      .where({ account_id: accountId });
     if (options.subscribed != null) q.where('subscribed', options.subscribed === 'true');
     const total = await q.clone().count('id as count').first().then((r) => Number(r.count));
-    const rows = await q.limit(pageSize).offset((page - 1) * pageSize);
+    const rows = await q
+      .clone()
+      .orderBy('updated_at', 'desc')
+      .limit(pageSize)
+      .offset((page - 1) * pageSize);
     return { rows, total };
   },
 

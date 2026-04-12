@@ -24,7 +24,8 @@ export async function up(knex) {
       ) THEN
         CREATE TEXT SEARCH CONFIGURATION grad_search (COPY = english);
         ALTER TEXT SEARCH CONFIGURATION grad_search
-          ALTER MAPPING FOR asciiword, word, compound, numword
+          -- Avoid non-standard token types (e.g., 'compound') for portability.
+          ALTER MAPPING FOR asciiword, word, numword
           WITH unaccent, english_stem;
       END IF;
     END $$;

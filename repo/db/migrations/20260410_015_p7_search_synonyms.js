@@ -13,7 +13,7 @@ export async function up(knex) {
     // Canonical term (normalised to lowercase)
     t.text('term').notNullable().unique();
     // Array of synonym strings — stored lowercase, expanded at query time
-    t.specificType('synonyms', 'TEXT[]').notNullable().defaultTo("'{}'");
+    t.specificType('synonyms', 'TEXT[]').notNullable().defaultTo(knex.raw("'{}'::text[]"));
     t.timestamp('updated_at', { useTz: true }).notNullable().defaultTo(knex.fn.now());
   });
 

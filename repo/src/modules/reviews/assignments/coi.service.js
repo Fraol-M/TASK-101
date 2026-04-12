@@ -104,7 +104,7 @@ export const coiService = {
     const windowYears = reviewPolicies.assignment.coiInstitutionWindowYears;
 
     // Build values list for the pairs
-    const values = pairs.map((_, i) => `($${i * 2 + 1}::uuid, $${i * 2 + 2}::uuid)`).join(', ');
+    const values = pairs.map(() => '(?::uuid, ?::uuid)').join(', ');
     const flatPairs = pairs.flatMap((p) => [p.reviewerId, p.applicationId]);
 
     const conflicts = await db.raw(

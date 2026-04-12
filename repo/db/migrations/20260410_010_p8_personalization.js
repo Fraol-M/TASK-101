@@ -9,7 +9,7 @@ export async function up(knex) {
     t.uuid('id').primary().defaultTo(knex.raw('uuid_generate_v4()'));
     t.uuid('account_id').notNullable().references('id').inTable('accounts').onDelete('CASCADE');
     t.string('entity_type', 50).notNullable();
-    t.uuid('stable_id').notNullable();
+    t.string('stable_id', 255).notNullable();
     // Capture the version that was viewed (for audit / reproducibility)
     t.uuid('version_id').nullable();
     t.timestamp('viewed_at', { useTz: true }).notNullable().defaultTo(knex.fn.now());
@@ -25,7 +25,7 @@ export async function up(knex) {
     t.uuid('id').primary().defaultTo(knex.raw('uuid_generate_v4()'));
     t.uuid('account_id').notNullable().references('id').inTable('accounts').onDelete('CASCADE');
     t.string('entity_type', 50).notNullable();
-    t.uuid('stable_id').notNullable();
+    t.string('stable_id', 255).notNullable();
     t.timestamp('created_at', { useTz: true }).notNullable().defaultTo(knex.fn.now());
     t.unique(['account_id', 'entity_type', 'stable_id']);
   });

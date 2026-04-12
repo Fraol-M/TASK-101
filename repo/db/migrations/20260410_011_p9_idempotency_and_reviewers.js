@@ -10,10 +10,12 @@ export async function up(knex) {
   // createTableIfNotExists guards against re-runs and future merges.
   await knex.schema.createTableIfNotExists('audit_events', (t) => {
     t.uuid('id').primary().defaultTo(knex.raw('uuid_generate_v4()'));
-    t.uuid('actor_account_id').nullable().references('id').inTable('accounts').onDelete('SET NULL');
+    // Store actor id without an FK so account deletion does not conflict with
+    // append-only protections on this table.
+    t.uuid('actor_account_id').nullable();
     t.string('action_type', 100).notNullable();
     t.string('entity_type', 50).notNullable();
-    t.uuid('entity_id').nullable();
+    t.text('entity_id').nullable();
     t.text('request_id').nullable(); // TEXT not UUID — request IDs are ULIDs (26 chars), not UUID format
     t.jsonb('before_summary').nullable();
     t.jsonb('after_summary').nullable();

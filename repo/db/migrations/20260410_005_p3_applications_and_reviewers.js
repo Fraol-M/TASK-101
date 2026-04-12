@@ -96,12 +96,16 @@ export async function up(knex) {
     t.timestamp('declared_at', { useTz: true }).notNullable().defaultTo(knex.fn.now());
   });
 
-  // Optimised index for COI 5-year window check
+  // Optimised indexes for COI lookups.
+  // NOTE: index predicates must be immutable in PostgreSQL, so we cannot use
+  // CURRENT_DATE in a partial index predicate.
   await knex.raw(`
     CREATE INDEX idx_rev_inst_hist_reviewer ON reviewer_institution_history(reviewer_id);
     CREATE INDEX idx_rev_inst_hist_coi
+      ON reviewer_institution_history(reviewer_id, university_id, end_date);
+    CREATE INDEX idx_rev_inst_hist_current
       ON reviewer_institution_history(reviewer_id, university_id)
-      WHERE end_date IS NULL OR end_date >= CURRENT_DATE - INTERVAL '5 years';
+      WHERE end_date IS NULL;
   `);
 }
 

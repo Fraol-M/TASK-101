@@ -46,14 +46,6 @@ vi.mock('../../src/common/idempotency/idempotency.repository.js', () => ({
   },
 }));
 
-vi.mock('../../src/common/metrics/metrics.js', () => ({
-  registry: { contentType: 'text/plain', metrics: vi.fn().mockResolvedValue('') },
-  reviewSubmissionsTotal: { inc: vi.fn() },
-  secondPassEscalationsTotal: { inc: vi.fn() },
-  authFailuresTotal: { inc: vi.fn() },
-  recommendationGenerationsTotal: { inc: vi.fn() },
-}));
-
 vi.mock('../../src/modules/admin/reviewer-pool/reviewer-pool.service.js', () => ({
   reviewerPoolService: {
     list: vi.fn(),
