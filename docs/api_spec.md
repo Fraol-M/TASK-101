@@ -847,9 +847,9 @@ Upload a file attachment for a review assignment. Request must be `multipart/for
 
 **Validation pipeline (in order):**
 1. Declared MIME type checked against allow-list (`application/pdf`, `image/png`, `image/jpeg`)
-2. File size checked against `maxFileBytes` (10 MB default)
+2. File size checked against `ATTACHMENT_MAX_FILE_BYTES` (10 MB default)
 3. Reviewer ownership verified — only the assigned reviewer can upload
-4. Optimistic pre-check: attachment count `< maxFilesPerReview` (5 default)
+4. Optimistic pre-check: attachment count `< ATTACHMENT_MAX_FILES_PER_REVIEW` (5 default)
 5. File buffer read; magic bytes verified against declared MIME type (prevents spoofing)
 6. SHA-256 hash computed
 7. `SELECT ... FOR UPDATE` on assignment row (serialises concurrent uploads)
@@ -950,7 +950,7 @@ Requires: `rankings:compute`
 
 Path params: `cycleId` — UUID.
 
-Aggregates all submitted (non-draft) scores for the cycle. Upserts `application_score_aggregates`. Auto-creates escalation events for high-variance applications (stddev > `varianceThreshold`, default 1.8).
+Aggregates all submitted (non-draft) scores for the cycle. Upserts `application_score_aggregates`. Auto-creates escalation events for high-variance applications (stddev > `REVIEW_VARIANCE_THRESHOLD`, default 1.8).
 
 Idempotent — safe to re-run.
 
@@ -1187,7 +1187,7 @@ Requires: `personalization:self:read`
 
 **Query params:** `entityType` (optional), `page`, `pageSize`
 
-Only returns views within the last `historyRetentionDays` (default 180 days).
+Only returns views within the last `HISTORY_RETENTION_DAYS` (default 180 days).
 
 **Response 200** — paginated list of view history records
 
@@ -1339,24 +1339,24 @@ Returns personalised entity recommendations with explainability scores.
 | Database URL | `DATABASE_URL` | — | Required |
 | Session idle timeout | `SESSION_IDLE_TIMEOUT_MINUTES` | 30 | Minutes |
 | Session absolute timeout | `SESSION_ABSOLUTE_TIMEOUT_HOURS` | 12 | Hours |
-| Token rotation interval | — | 15 min | Hardcoded in `auth.config.js` |
+| Token rotation interval | — | 15 min | Hardcoded in `src/config/auth.js` |
 | Token rotation grace window | — | 30 s | Hardcoded |
 | Bcrypt cost factor | — | 12 | Hardcoded |
 | Password min length | — | 12 | Hardcoded |
 | Password history count | — | 5 | Last N passwords blocked |
-| Attachment storage root | `ATTACHMENTS_STORAGE_ROOT` | `./storage/attachments` | Resolved to absolute path |
-| Max file size | `MAX_FILE_BYTES` | 10 485 760 (10 MB) | |
-| Max files per review | `MAX_FILES_PER_REVIEW` | 5 | |
-| Allowed MIME types | `ALLOWED_MIME_TYPES` | `application/pdf,image/png,image/jpeg` | Comma-separated |
-| COI institution window | — | 5 years | Hardcoded in `review-policies.js` |
-| Min reviewers per application | — | 2 | Configurable in `review-policies.js` |
-| Trim enabled | `REVIEW_TRIM_ENABLED` | true | |
+| Attachment storage root | `ATTACHMENT_STORAGE_ROOT` | `./storage/attachments` | |
+| Max file size | `ATTACHMENT_MAX_FILE_BYTES` | 10 485 760 (10 MB) | |
+| Max files per review | `ATTACHMENT_MAX_FILES_PER_REVIEW` | 5 | |
+| Allowed MIME types | — | `application/pdf,image/png,image/jpeg` | Hardcoded in env.js |
+| COI institution window | — | 5 years | Hardcoded in `src/config/review-policies.js` |
+| Min reviewers per application | — | 2 | Configurable in `src/config/review-policies.js` |
+| Trim enabled | `REVIEW_TRIM_ENABLED` | `true` | |
 | Trim percent | `REVIEW_TRIM_PERCENT` | 10 | % trimmed from each end |
 | Trim min count | `REVIEW_TRIM_MIN_COUNT` | 7 | Min scores before trimming activates |
 | Variance threshold | `REVIEW_VARIANCE_THRESHOLD` | 1.8 | Stddev above which escalation fires |
-| Score step | — | 0.5 | Min increment between scores |
+| Score step | — | 0.5 | Min increment between scores; hardcoded |
 | Score range | — | 0–10 | Per criterion, normalised to 0–10 |
 | Search FTS config | `SEARCH_DEFAULT_LANGUAGE` | `english` | PostgreSQL FTS dictionary |
-| History retention | `PERSONALIZATION_HISTORY_RETENTION_DAYS` | 180 | Days before view history pruned |
+| History retention | `HISTORY_RETENTION_DAYS` | 180 | Days before view history pruned |
 | Encryption key | `LOCAL_ENCRYPTION_KEY` | — | Required; 64-char hex (32 bytes) |
 | Log level | `LOG_LEVEL` | `info` | trace, debug, info, warn, error, fatal |
