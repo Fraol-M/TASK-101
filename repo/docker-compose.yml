@@ -1,0 +1,176 @@
+# =============================================================================
+# GradAdmissions Platform — Docker Compose
+#
+# Profiles:
+#   (none / default) — db + app in production mode
+#   dev              — db + app-dev with hot-reload and bind mounts
+#   test             — db + test runner (one-shot; exits with vitest exit code)
+#
+# Common commands:
+#   docker compose up                        # production
+#   docker compose --profile dev up          # development (hot reload)
+#   docker compose --profile test run --rm test   # run tests
+#   docker compose run --rm migrate          # run migrations only
+#   docker compose down -v                   # tear down + delete volumes
+# =============================================================================
+
+x-app-env: &app-env
+  PORT: 3000
+  DATABASE_URL: postgresql://graduser:gradpass@db:5432/graddb
+  SESSION_IDLE_TIMEOUT_MINUTES: 30
+  SESSION_ABSOLUTE_TIMEOUT_HOURS: 12
+  ATTACHMENT_STORAGE_ROOT: /app/storage/attachments
+  ATTACHMENT_MAX_FILE_BYTES: 10485760
+  ATTACHMENT_MAX_FILES_PER_REVIEW: 5
+  LOCAL_ENCRYPTION_KEY: ${LOCAL_ENCRYPTION_KEY:?LOCAL_ENCRYPTION_KEY must be set in .env}
+  SEARCH_DEFAULT_LANGUAGE: english
+  HISTORY_RETENTION_DAYS: 180
+  REVIEW_TRIM_ENABLED: "true"
+  REVIEW_TRIM_PERCENT: 10
+  REVIEW_TRIM_MIN_COUNT: 7
+  REVIEW_VARIANCE_THRESHOLD: "1.8"
+  LOG_LEVEL: info
+
+x-test-env: &test-env
+  NODE_ENV: test
+  DATABASE_URL: postgresql://graduser:gradpass@db:5432/graddb_test
+  DATABASE_URL_TEST: postgresql://graduser:gradpass@db:5432/graddb_test
+  LOCAL_ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000000"
+  LOG_LEVEL: error
+  # Non-test vars that config/env.js requires at parse time
+  SESSION_IDLE_TIMEOUT_MINUTES: 30
+  SESSION_ABSOLUTE_TIMEOUT_HOURS: 12
+  ATTACHMENT_STORAGE_ROOT: /tmp/test-attachments
+  ATTACHMENT_MAX_FILE_BYTES: 10485760
+  ATTACHMENT_MAX_FILES_PER_REVIEW: 5
+  SEARCH_DEFAULT_LANGUAGE: english
+  HISTORY_RETENTION_DAYS: 180
+  REVIEW_TRIM_ENABLED: "true"
+  REVIEW_TRIM_PERCENT: 10
+  REVIEW_TRIM_MIN_COUNT: 7
+  REVIEW_VARIANCE_THRESHOLD: "1.8"
+
+services:
+  # ── Database ────────────────────────────────────────────────────────────────
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: graddb
+      POSTGRES_USER: graduser
+      POSTGRES_PASSWORD: gradpass
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # init-db.sql creates graddb_test and installs extensions on first boot
+      - ./docker/init-db.sql:/docker-entrypoint-initdb.d/10-init-db.sql:ro
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U graduser -d graddb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # ── One-shot migration runner ─────────────────────────────────────────────
+  # Run manually when you need to apply migrations without restarting the app:
+  #   docker compose run --rm migrate
+  migrate:
+    build:
+      context: .
+      target: production
+    command: ["node", "node_modules/.bin/knex", "migrate:latest", "--knexfile", "knexfile.js"]
+    environment:
+      <<: *app-env
+      NODE_ENV: production
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+    profiles: [migrate]
+
+  # ── Production app ────────────────────────────────────────────────────────
+  # Entrypoint script runs migrations then starts the server.
+  app:
+    build:
+      context: .
+      target: production
+    restart: unless-stopped
+    environment:
+      <<: *app-env
+      NODE_ENV: production
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    volumes:
+      - attachments:/app/storage/attachments
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ── Development app (hot reload) ──────────────────────────────────────────
+  # Uses the 'dev' profile:
+  #   docker compose --profile dev up
+  #
+  # Source code is bind-mounted read-only from the host.
+  # Node --watch restarts the process on any .js change inside src/.
+  app-dev:
+    build:
+      context: .
+      target: development
+    environment:
+      <<: *app-env
+      NODE_ENV: development
+      LOG_LEVEL: debug
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    volumes:
+      # Bind-mount source for live reload.  node_modules stays in the image.
+      - ./src:/app/src:ro
+      - ./db:/app/db:ro
+      - ./scripts:/app/scripts:ro
+      - ./knexfile.js:/app/knexfile.js:ro
+      # Writable attachment storage on the host for easy inspection
+      - ./storage/attachments:/app/storage/attachments
+    profiles: [dev]
+    # Auto-run migrations in dev mode before starting the server
+    command: >
+      sh -c "node node_modules/.bin/knex migrate:latest --knexfile knexfile.js
+             && node --watch src/server.js"
+
+  # ── Test runner ───────────────────────────────────────────────────────────
+  # One-shot: exits with vitest's exit code (0 = pass, non-zero = fail).
+  # Usage:
+  #   docker compose --profile test run --rm test
+  #   docker compose --profile test run --rm test npm run test:unit
+  #   docker compose --profile test run --rm test npm run test:integration
+  test:
+    build:
+      context: .
+      target: test
+    environment:
+      <<: *test-env
+    depends_on:
+      db:
+        condition: service_healthy
+    # Run migrations against the test DB first, then run tests
+    command: >
+      sh -c "node node_modules/.bin/knex migrate:latest
+               --knexfile knexfile.js
+               --env test
+             && npm run test"
+    profiles: [test]
+
+volumes:
+  pgdata:
+    driver: local
+  attachments:
+    driver: local

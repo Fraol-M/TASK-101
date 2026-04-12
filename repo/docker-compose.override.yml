@@ -1,0 +1,33 @@
+# =============================================================================
+# docker-compose.override.yml — Development overrides
+#
+# Docker Compose automatically merges this file with docker-compose.yml when
+# you run `docker compose up` without a -f flag.
+#
+# Effect: `docker compose up` runs in DEVELOPMENT mode by default (hot reload,
+# debug logging).  To run in production mode, use:
+#   docker compose -f docker-compose.yml up
+# =============================================================================
+
+services:
+  # Override the production `app` service to use the dev target locally.
+  # This replaces the CMD from docker-compose.yml for the app service.
+  app:
+    build:
+      context: .
+      target: development
+    environment:
+      NODE_ENV: development
+      LOG_LEVEL: debug
+    volumes:
+      - ./src:/app/src:ro
+      - ./db:/app/db:ro
+      - ./scripts:/app/scripts:ro
+      - ./docker:/app/docker:ro
+      - ./knexfile.js:/app/knexfile.js:ro
+      - ./storage/attachments:/app/storage/attachments
+    # Override entrypoint: run migrations then hot-reload server
+    entrypoint: ["/usr/bin/dumb-init", "--"]
+    command: >
+      sh -c "node node_modules/.bin/knex migrate:latest --knexfile knexfile.js
+             && node --watch src/server.js"
