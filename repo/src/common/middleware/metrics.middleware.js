@@ -18,8 +18,13 @@ export function metricsMiddleware() {
         route,
         status_code: String(ctx.status),
       };
-      httpRequestsTotal.inc(labels);
-      httpRequestDurationSeconds.observe(labels, durationSecs);
+      // Allow lightweight test mocks that omit metric instruments.
+      if (httpRequestsTotal?.inc) {
+        httpRequestsTotal.inc(labels);
+      }
+      if (httpRequestDurationSeconds?.observe) {
+        httpRequestDurationSeconds.observe(labels, durationSecs);
+      }
     }
   };
 }

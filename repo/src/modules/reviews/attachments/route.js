@@ -37,10 +37,18 @@ attachmentsRouter.post(
 attachmentsRouter.get(
   '/',
   requirePermission('review', 'read-assigned'),
-  validate({ query: z.object({ assignmentId: z.string().uuid() }) }),
   async (ctx) => {
+    const assignmentId = ctx.query.assignmentId;
+    if (!assignmentId) {
+      throw new UnprocessableError('assignmentId is required');
+    }
+    const parsed = z.string().uuid().safeParse(assignmentId);
+    if (!parsed.success) {
+      throw new UnprocessableError('assignmentId must be a valid UUID');
+    }
+
     const attachments = await attachmentService.listByAssignment(
-      ctx.query.assignmentId,
+      assignmentId,
       ctx.state.user,
     );
     ctx.body = {

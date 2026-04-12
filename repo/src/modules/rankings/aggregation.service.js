@@ -204,7 +204,6 @@ export const aggregationService = {
   async getRankings(cycleId, filters = {}) {
     const q = knex('application_score_aggregates as agg')
       .where('agg.cycle_id', cycleId)
-      .orderBy('agg.rank', 'asc')
       .select(
         'agg.application_id',
         'agg.rank',
@@ -223,8 +222,17 @@ export const aggregationService = {
 
     const page = Number(filters.page) || 1;
     const pageSize = Math.min(Number(filters.pageSize) || 50, 200);
-    const total = await q.clone().count('agg.application_id as count').first().then((r) => Number(r.count));
-    const rows = await q.limit(pageSize).offset((page - 1) * pageSize);
+    const total = await q
+      .clone()
+      .clearSelect()
+      .count('agg.application_id as count')
+      .first()
+      .then((r) => Number(r.count));
+    const rows = await q
+      .clone()
+      .orderBy('agg.rank', 'asc')
+      .limit(pageSize)
+      .offset((page - 1) * pageSize);
 
     return { rows, total };
   },

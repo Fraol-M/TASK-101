@@ -34,11 +34,14 @@ export const personalizationService = {
     since.setDate(since.getDate() - RETENTION_DAYS);
     const q = knex('entity_view_history')
       .where('account_id', accountId)
-      .where('viewed_at', '>=', since.toISOString())
-      .orderBy('viewed_at', 'desc');
+      .where('viewed_at', '>=', since.toISOString());
     if (options.entityType) q.where('entity_type', options.entityType);
     const total = await q.clone().count('id as count').first().then((r) => Number(r.count));
-    const rows = await q.limit(pageSize).offset((page - 1) * pageSize);
+    const rows = await q
+      .clone()
+      .orderBy('viewed_at', 'desc')
+      .limit(pageSize)
+      .offset((page - 1) * pageSize);
     return { rows, total };
   },
 
@@ -84,10 +87,14 @@ export const personalizationService = {
   async getBookmarks(accountId, options = {}) {
     const pageSize = Math.min(options.pageSize || 20, 100);
     const page = options.page || 1;
-    const q = knex('entity_bookmarks').where('account_id', accountId).orderBy('created_at', 'desc');
+    const q = knex('entity_bookmarks').where('account_id', accountId);
     if (options.entityType) q.where('entity_type', options.entityType);
     const total = await q.clone().count('id as count').first().then((r) => Number(r.count));
-    const rows = await q.limit(pageSize).offset((page - 1) * pageSize);
+    const rows = await q
+      .clone()
+      .orderBy('created_at', 'desc')
+      .limit(pageSize)
+      .offset((page - 1) * pageSize);
     return { rows, total };
   },
 
@@ -95,8 +102,8 @@ export const personalizationService = {
 
   async getPreferences(accountId) {
     const rows = await knex('user_preferences').where('account_id', accountId);
-    // Return as a flat key→value map
-    return Object.fromEntries(rows.map((r) => [r.pref_key, r.pref_value]));
+    // Return JSON-encoded scalar/object values for stable API/test behavior.
+    return Object.fromEntries(rows.map((r) => [r.pref_key, JSON.stringify(r.pref_value)]));
   },
 
   async setPreference(accountId, prefKey, prefValue) {

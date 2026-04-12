@@ -31,8 +31,9 @@ const cleanup = {
 };
 
 async function createAccount(suffix) {
+  const uniqueSuffix = `${suffix}-${cleanup.accountIds.length}`;
   const [acc] = await knex('accounts')
-    .insert({ username: `rank-pipe-${TS}-${suffix}`, password_hash: DUMMY_HASH })
+    .insert({ username: `rank-pipe-${TS}-${uniqueSuffix}`, password_hash: DUMMY_HASH })
     .returning('id');
   cleanup.accountIds.push(acc.id);
   return acc;
