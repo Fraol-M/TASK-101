@@ -61,7 +61,7 @@ export const auditService = {
     if (filters.from) q = q.where('occurred_at', '>=', filters.from);
     if (filters.to) q = q.where('occurred_at', '<=', filters.to);
 
-    const total = await q.clone().count('id as count').first().then((r) => Number(r.count));
+    const total = await q.clone().clearOrder().count('id as count').first().then((r) => Number(r.count));
 
     const offset = (filters.page - 1) * filters.pageSize;
     const rows = await q.limit(filters.pageSize).offset(offset);

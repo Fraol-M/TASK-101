@@ -7,7 +7,7 @@ import { z } from 'zod';
 export const rbacRouter = new Router({ prefix: '/admin' });
 
 const createRoleSchema = z.object({
-  name: z.string().min(1).max(50).regex(/^[A-Z_]+$/, 'Role names must be uppercase with underscores'),
+  name: z.string().min(1).max(50).regex(/^[A-Z0-9_]+$/, 'Role names must be uppercase with underscores and digits'),
   description: z.string().max(500).optional(),
 });
 

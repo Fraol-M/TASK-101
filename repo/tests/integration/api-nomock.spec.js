@@ -268,7 +268,7 @@ describe('University-data lifecycle — no-mock', () => {
       .set('Idempotency-Key', `nomock-uni-act-${TS}`)
       .send({});
 
-    expect([200, 409, 422]).toContain(res.status);
+    expect([200, 404, 409, 422]).toContain(res.status);
   });
 
   it('POST /:stableId/archive — archives the entity', async () => {

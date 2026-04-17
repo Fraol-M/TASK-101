@@ -131,6 +131,9 @@ afterAll(async () => {
     await knex('scoring_form_templates').whereIn('id', cleanup.templateIds).delete();
   }
   if (cleanup.reviewerProfileIds.length) {
+    // Safety net: ensure no assignments remain for these reviewer profiles
+    // even if an assignment id was not captured in cleanup.assignmentIds.
+    await knex('review_assignments').whereIn('reviewer_id', cleanup.reviewerProfileIds).delete();
     await knex('reviewer_profiles').whereIn('id', cleanup.reviewerProfileIds).delete();
   }
   if (cleanup.applicationIds.length) {

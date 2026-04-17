@@ -56,14 +56,14 @@ export const sessionService = {
     const now = new Date();
 
     // Use FOR UPDATE NOWAIT with one retry to handle transient lock contention.
-    // SKIP LOCKED can silently miss a locked row and return null, causing spurious 401s
-    // when two concurrent requests arrive during a rotation window.
-    return knex.transaction(async (trx) => {
-      let session;
-      let lockAttempt = 0;
-      while (true) {
-        try {
-          session = await trx.raw(
+    // The retry must start a fresh transaction because a 55P03 error aborts
+    // the current transaction in PostgreSQL.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        // SKIP LOCKED can silently miss a locked row and return null, causing spurious 401s
+        // when two concurrent requests arrive during a rotation window.
+        return await knex.transaction(async (trx) => {
+          const session = await trx.raw(
             `
             SELECT s.*, a.id AS account_id, a.username, a.status AS account_status
             FROM sessions s
@@ -77,95 +77,93 @@ export const sessionService = {
             `,
             [tokenHash, tokenHash],
           ).then((r) => r.rows[0]);
-          break;
-        } catch (err) {
-          // 55P03 = lock_not_available (FOR UPDATE NOWAIT); retry once with brief backoff
-          if (err.code === '55P03' && lockAttempt < 1) {
-            lockAttempt++;
-            await new Promise((resolve) => setTimeout(resolve, 50));
-            continue;
+
+          if (!session) {
+            authFailuresTotal.inc({ reason: 'invalid_or_expired_token' });
+            throw new AuthenticationError('Session not found or expired');
           }
-          throw err;
+
+          if (session.account_status !== 'active') {
+            authFailuresTotal.inc({ reason: 'account_inactive' });
+            throw new AuthenticationError('Account is not active');
+          }
+
+          let newToken = null;
+          const isUsingPreviousToken = Buffer.compare(
+            Buffer.from(tokenHash),
+            Buffer.from(session.previous_token_hash || Buffer.alloc(0)),
+          ) === 0;
+
+          if (isUsingPreviousToken) {
+            // Enforce grace window: previous token is only valid for rotationGraceMs after rotation.
+            // Without this check, a stolen previous token would remain valid indefinitely.
+            const rotatedAtMs = session.rotated_at ? new Date(session.rotated_at).getTime() : 0;
+            if (now.getTime() - rotatedAtMs > rotationGraceMs) {
+              authFailuresTotal.inc({ reason: 'grace_expired' });
+              throw new AuthenticationError('Session grace window expired - please re-authenticate');
+            }
+            // Update last_active_at only (do not re-rotate; client must use the already-issued token)
+            await trx('sessions')
+              .where({ id: session.id })
+              .update({
+                last_active_at: now.toISOString(),
+                idle_expires_at: new Date(now.getTime() + idleTimeoutMs).toISOString(),
+              });
+          } else {
+            // Normal path: current token
+            const timeSinceRotation = session.rotated_at
+              ? now.getTime() - new Date(session.rotated_at).getTime()
+              : Infinity;
+
+            if (timeSinceRotation > rotationIntervalMs) {
+              // Rotate token
+              newToken = generateOpaqueToken();
+              const newTokenHash = hashToken(newToken);
+
+              await trx('sessions')
+                .where({ id: session.id })
+                .update({
+                  previous_token_hash: tokenHash,
+                  token_hash: newTokenHash,
+                  rotated_at: now.toISOString(),
+                  last_active_at: now.toISOString(),
+                  idle_expires_at: new Date(now.getTime() + idleTimeoutMs).toISOString(),
+                });
+            } else {
+              // Just update last_active_at
+              await trx('sessions')
+                .where({ id: session.id })
+                .update({
+                  last_active_at: now.toISOString(),
+                  idle_expires_at: new Date(now.getTime() + idleTimeoutMs).toISOString(),
+                });
+            }
+          }
+
+          // Load user roles
+          const roles = await trx('account_roles')
+            .join('roles', 'roles.id', 'account_roles.role_id')
+            .where('account_roles.account_id', session.account_id)
+            .pluck('roles.name');
+
+          return {
+            user: {
+              id: session.account_id,
+              username: session.username,
+              roles,
+            },
+            newToken,
+          };
+        });
+      } catch (err) {
+        // 55P03 = lock_not_available (FOR UPDATE NOWAIT); retry once with brief backoff
+        if (err.code === '55P03' && attempt < 1) {
+          await new Promise((resolve) => setTimeout(resolve, 50));
+          continue;
         }
+        throw err;
       }
-
-      if (!session) {
-        authFailuresTotal.inc({ reason: 'invalid_or_expired_token' });
-        throw new AuthenticationError('Session not found or expired');
-      }
-
-      if (session.account_status !== 'active') {
-        authFailuresTotal.inc({ reason: 'account_inactive' });
-        throw new AuthenticationError('Account is not active');
-      }
-
-      let newToken = null;
-      const isUsingPreviousToken = Buffer.compare(
-        Buffer.from(tokenHash),
-        Buffer.from(session.previous_token_hash || Buffer.alloc(0)),
-      ) === 0;
-
-      if (isUsingPreviousToken) {
-        // Enforce grace window: previous token is only valid for rotationGraceMs after rotation.
-        // Without this check, a stolen previous token would remain valid indefinitely.
-        const rotatedAtMs = session.rotated_at ? new Date(session.rotated_at).getTime() : 0;
-        if (now.getTime() - rotatedAtMs > rotationGraceMs) {
-          authFailuresTotal.inc({ reason: 'grace_expired' });
-          throw new AuthenticationError('Session grace window expired — please re-authenticate');
-        }
-        // Update last_active_at only (do not re-rotate; client must use the already-issued token)
-        await trx('sessions')
-          .where({ id: session.id })
-          .update({
-            last_active_at: now.toISOString(),
-            idle_expires_at: new Date(now.getTime() + idleTimeoutMs).toISOString(),
-          });
-      } else {
-        // Normal path: current token
-        const timeSinceRotation = session.rotated_at
-          ? now.getTime() - new Date(session.rotated_at).getTime()
-          : Infinity;
-
-        if (timeSinceRotation > rotationIntervalMs) {
-          // Rotate token
-          newToken = generateOpaqueToken();
-          const newTokenHash = hashToken(newToken);
-
-          await trx('sessions')
-            .where({ id: session.id })
-            .update({
-              previous_token_hash: tokenHash,
-              token_hash: newTokenHash,
-              rotated_at: now.toISOString(),
-              last_active_at: now.toISOString(),
-              idle_expires_at: new Date(now.getTime() + idleTimeoutMs).toISOString(),
-            });
-        } else {
-          // Just update last_active_at
-          await trx('sessions')
-            .where({ id: session.id })
-            .update({
-              last_active_at: now.toISOString(),
-              idle_expires_at: new Date(now.getTime() + idleTimeoutMs).toISOString(),
-            });
-        }
-      }
-
-      // Load user roles
-      const roles = await trx('account_roles')
-        .join('roles', 'roles.id', 'account_roles.role_id')
-        .where('account_roles.account_id', session.account_id)
-        .pluck('roles.name');
-
-      return {
-        user: {
-          id: session.account_id,
-          username: session.username,
-          roles,
-        },
-        newToken,
-      };
-    });
+    }
   },
 
   /**
@@ -197,3 +195,4 @@ export const sessionService = {
       });
   },
 };
+

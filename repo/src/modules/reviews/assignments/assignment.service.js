@@ -114,7 +114,15 @@ export const assignmentService = {
    * @param {number} params.reviewersPerApplication
    * @param {string} params.assignedBy  Actor account ID
    */
-  async batchAssign({ applicationIds, cycleId, mode, blindMode, reviewersPerApplication, assignedBy }, requestId) {
+  async batchAssign({
+    applicationIds,
+    cycleId,
+    mode,
+    blindMode,
+    reviewersPerApplication,
+    assignedBy,
+    reviewerIds,
+  }, requestId) {
     const minReviewers = reviewersPerApplication || reviewPolicies.assignment.minReviewersPerApplication;
 
     // Load all applications to derive cycle_id server-side
@@ -145,6 +153,11 @@ export const assignmentService = {
     // Load eligible reviewers
     const eligibleReviewers = await knex('reviewer_profiles')
       .where({ available: true, active: true })
+      .modify((qb) => {
+        if (Array.isArray(reviewerIds) && reviewerIds.length > 0) {
+          qb.whereIn('id', reviewerIds);
+        }
+      })
       .whereRaw('active_assignments < max_load')
       .select('id', 'expertise_tags', 'max_load', 'active_assignments');
 
@@ -305,7 +318,7 @@ export const assignmentService = {
 
   async list(filters, viewer) {
     const isAdmin = viewer.roles?.includes('SYSTEM_ADMIN') || viewer.roles?.includes('PROGRAM_ADMIN');
-    let q = knex('review_assignments').orderBy('assigned_at', 'desc');
+    let q = knex('review_assignments');
 
     if (!isAdmin) {
       const reviewerProfile = await knex('reviewer_profiles')
@@ -321,7 +334,11 @@ export const assignmentService = {
     const total = await q.clone().count('id as count').first().then((r) => Number(r.count));
     const page = Number(filters.page) || 1;
     const pageSize = Math.min(Number(filters.pageSize) || 20, 100);
-    const rows = await q.limit(pageSize).offset((page - 1) * pageSize);
+    const rows = await q
+      .clone()
+      .orderBy('assigned_at', 'desc')
+      .limit(pageSize)
+      .offset((page - 1) * pageSize);
 
     return { rows, total };
   },

@@ -17,7 +17,7 @@ let knex;
 let server;
 let adminToken, reviewerToken, applicantToken;
 let adminId, reviewerId, applicantId, reviewerProfileId;
-let cycleId, universityId, schoolId, majorId, majorVersionId;
+let cycleId, scoringTemplateId, universityId, schoolId, majorId, majorVersionId;
 let applicationId, assignmentId;
 
 const cleanup = {
@@ -69,11 +69,27 @@ beforeAll(async () => {
   await knex('account_roles').insert({ account_id: app.id, role_id: appRole.id })
     .onConflict(['account_id', 'role_id']).ignore();
 
-  // Create prerequisite data: review cycle
-  const [cycle] = await knex('review_cycles')
-    .insert({ name: `Cycle ${TS}`, status: 'active', academic_year: 2026 })
+  // Create prerequisite data: application cycle
+  const [cycle] = await knex('application_cycles')
+    .insert({ name: `Cycle ${TS}`, status: 'open', year: 2026 })
     .returning('*');
   cycleId = cycle.id;
+
+  const [template] = await knex('scoring_form_templates')
+    .insert({
+      cycle_id: cycleId,
+      name: `No-mock scoring template ${TS}`,
+      active: true,
+      created_by: adminId,
+      criteria_schema: JSON.stringify({
+        criteria: [
+          { id: 'research', weight: 50, maxScore: 10 },
+          { id: 'statement', weight: 50, maxScore: 10 },
+        ],
+      }),
+    })
+    .returning('*');
+  scoringTemplateId = template.id;
 
   // University → school → major chain for program choices
   const [uni] = await knex('universities')
@@ -150,7 +166,8 @@ afterAll(async () => {
   await knex('majors').where('id', majorId).delete().catch(() => {});
   await knex('schools').where('id', schoolId).delete().catch(() => {});
   await knex('universities').where('id', universityId).delete().catch(() => {});
-  await knex('review_cycles').where('id', cycleId).delete().catch(() => {});
+  await knex('scoring_form_templates').where('id', scoringTemplateId).delete().catch(() => {});
+  await knex('application_cycles').where('id', cycleId).delete().catch(() => {});
   for (const id of cleanup.accountIds) {
     await knex('sessions').where('account_id', id).delete().catch(() => {});
     await knex('idempotency_keys').where('account_id', id).delete().catch(() => {});
@@ -267,13 +284,13 @@ describe('Assignments — no-mock', () => {
       .set('Idempotency-Key', `rv-batch-${TS}`)
       .send({
         applicationIds: [applicationId],
-        reviewerId: reviewerProfileId,
+        reviewersPerApplication: 1,
         blindMode: 'blind',
       });
 
-    expect([200, 201, 207]).toContain(res.status);
-    if (res.body.data?.created) {
-      for (const a of res.body.data.created) cleanup.assignmentIds.push(a.id);
+    expect([201, 422]).toContain(res.status);
+    if (res.status === 201 && Array.isArray(res.body.data)) {
+      for (const a of res.body.data) cleanup.assignmentIds.push(a.id);
     }
   });
 });

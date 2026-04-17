@@ -149,8 +149,13 @@ export function makeVersionedRepository(config) {
 
       const today = new Date().toISOString().split('T')[0];
       // effectiveFrom from publish request takes precedence over the stored draft value
-      const effectiveDate = effectiveFrom || version.effective_from;
-      const isImmediate = effectiveDate <= today;
+      let effectiveDateStr = effectiveFrom;
+      if (!effectiveDateStr) {
+        effectiveDateStr = version.effective_from instanceof Date 
+          ? version.effective_from.toISOString().split('T')[0] 
+          : version.effective_from;
+      }
+      const isImmediate = effectiveDateStr <= today;
       const newStatus = isImmediate ? 'active' : 'scheduled';
 
       if (isImmediate) {
@@ -165,7 +170,7 @@ export function makeVersionedRepository(config) {
         .update({
           lifecycle_status: newStatus,
           version_number: nextVersionNumber,
-          effective_from: effectiveDate, // persist the resolved date (may override draft value)
+          effective_from: effectiveDateStr, // persist the resolved date (may override draft value)
           published_at: new Date().toISOString(),
           published_by: actorId,
           updated_at: new Date().toISOString(),
@@ -242,9 +247,14 @@ export function makeVersionedRepository(config) {
           .where({ id: versionId, [stableIdColumn]: stableId, lifecycle_status: 'scheduled' })
           .first();
         if (!candidate) return null; // Not found, wrong entity, or not scheduled
-        if (candidate.effective_from > today) {
+        
+        const candEffectiveStr = candidate.effective_from instanceof Date 
+          ? candidate.effective_from.toISOString().split('T')[0] 
+          : candidate.effective_from;
+
+        if (candEffectiveStr > today) {
           const err = new Error(
-            `Version effective_from ${candidate.effective_from} is not yet due (today is ${today})`,
+            `Version effective_from ${candEffectiveStr} is not yet due (today is ${today})`,
           );
           err.code = 'NOT_DUE';
           throw err;

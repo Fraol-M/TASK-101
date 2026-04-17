@@ -90,15 +90,18 @@ export const workbenchService = {
 
     const q = knex('review_assignments')
       .where({ reviewer_id: reviewerProfile.id })
-      .whereIn('status', ['assigned', 'accepted'])
-      .orderBy('assigned_at', 'asc');
+      .whereIn('status', ['assigned', 'accepted']);
 
     if (filters.cycleId) q.where('cycle_id', filters.cycleId);
 
     const total = await q.clone().count('id as count').first().then((r) => Number(r.count));
     const page = Number(filters.page) || 1;
     const pageSize = Math.min(Number(filters.pageSize) || 20, 100);
-    const rows = await q.limit(pageSize).offset((page - 1) * pageSize);
+    const rows = await q
+      .clone()
+      .orderBy('assigned_at', 'asc')
+      .limit(pageSize)
+      .offset((page - 1) * pageSize);
 
     return { rows, total };
   },

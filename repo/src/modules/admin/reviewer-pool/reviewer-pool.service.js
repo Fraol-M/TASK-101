@@ -29,7 +29,7 @@ export const reviewerPoolService = {
     if (filters.available != null) q.where('rp.available', filters.available === 'true');
     if (filters.active != null) q.where('rp.active', filters.active === 'true');
 
-    const total = await q.clone().count('rp.id as count').first().then((r) => Number(r.count));
+    const total = await q.clone().clearSelect().clearOrder().count('rp.id as count').first().then((r) => Number(r.count));
     const rows = await q.orderBy('a.username').limit(pageSize).offset((page - 1) * pageSize);
     return { rows, total };
   },
@@ -76,7 +76,7 @@ export const reviewerPoolService = {
     if (patch.available != null) update.available = patch.available;
     if (patch.active != null) update.active = patch.active;
     if (patch.maxLoad != null) update.max_load = patch.maxLoad;
-    if (patch.expertiseTags != null) update.expertise_tags = patch.expertiseTags;
+    if (patch.expertiseTags != null) update.expertise_tags = JSON.stringify(patch.expertiseTags);
     if (!Object.keys(update).length) return this.getById(reviewerId);
 
     return withTransaction(async (trx) => {

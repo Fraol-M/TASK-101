@@ -34,7 +34,7 @@ import { auditService } from '../../src/modules/admin/audit/audit.service.js';
 
 function mockChain(resolveWith) {
   const chain = {};
-  for (const m of ['where','whereIn','whereNot','select','insert','update','delete','orderBy','limit','offset','join','clone','andOn','on','raw']) {
+  for (const m of ['where','whereIn','whereNot','select','insert','update','delete','orderBy','limit','offset','join','clone','andOn','on','raw','clearOrder','clearSelect']) {
     chain[m] = vi.fn().mockReturnValue(chain);
   }
   chain.first = vi.fn().mockResolvedValue(resolveWith);

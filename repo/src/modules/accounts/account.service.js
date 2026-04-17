@@ -30,7 +30,7 @@ export const accountService = {
           email_encrypted: email ? encrypt(email) : null,
           display_name_encrypted: displayName ? encrypt(displayName) : null,
         })
-        .returning('id', 'username', 'status', 'created_at');
+        .returning(['id', 'username', 'status', 'created_at']);
 
       await auditService.record({
         actorAccountId,
@@ -50,7 +50,7 @@ export const accountService = {
     const [account] = await (trx || knex)('accounts')
       .where({ id: accountId })
       .update({ status, updated_at: new Date().toISOString() })
-      .returning('id', 'username', 'status');
+      .returning(['id', 'username', 'status']);
     if (!account) throw new NotFoundError('Account not found');
 
     await auditService.record({
