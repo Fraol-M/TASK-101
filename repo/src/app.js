@@ -62,6 +62,7 @@ export function createApp() {
     koaBody({
       json: true,
       multipart: true,
+      parsedMethods: ['POST', 'PUT', 'PATCH', 'DELETE'],
       formidable: {
         maxFileSize: config.attachments.maxFileBytes,
         maxFields: 20,

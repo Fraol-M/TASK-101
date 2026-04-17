@@ -42,6 +42,11 @@ echo "[entrypoint] Running database migrations..."
 node node_modules/.bin/knex migrate:latest --knexfile knexfile.js
 echo "[entrypoint] Migrations complete."
 
+# ── Seed demo data ────────────────────────────────────────────────────────────
+echo "[entrypoint] Seeding demo data..."
+node node_modules/.bin/knex seed:run --knexfile knexfile.js
+echo "[entrypoint] Seeding complete."
+
 # ── Start server ──────────────────────────────────────────────────────────────
 echo "[entrypoint] Starting server..."
 exec node src/server.js

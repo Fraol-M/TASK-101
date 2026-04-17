@@ -235,3 +235,157 @@ describe('GET /v1/personalization/preferences', () => {
     expect(res.body.data.theme).toBe('dark');
   });
 });
+
+// ── POST /v1/personalization/views ───────────────────────────────────────────
+
+describe('POST /v1/personalization/views', () => {
+  it('returns 204 on successful view record', async () => {
+    asUser(APPLICANT);
+    personalizationService.recordView.mockResolvedValueOnce(undefined);
+
+    const res = await request(server)
+      .post('/v1/personalization/views')
+      .set('Authorization', 'Bearer token')
+      .set('Idempotency-Key', 'view-1')
+      .send({ entityType: 'university', stableId: STABLE_ID });
+
+    expect(res.status).toBe(204);
+  });
+
+  it('returns 400 when entityType is missing', async () => {
+    asUser(APPLICANT);
+
+    const res = await request(server)
+      .post('/v1/personalization/views')
+      .set('Authorization', 'Bearer token')
+      .set('Idempotency-Key', 'view-2')
+      .send({ stableId: STABLE_ID });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('returns 401 without Authorization header', async () => {
+    const res = await request(server)
+      .post('/v1/personalization/views')
+      .send({ entityType: 'university', stableId: STABLE_ID });
+    expect(res.status).toBe(401);
+  });
+});
+
+// ── DELETE /v1/personalization/bookmarks ──────────────────────────────────────
+
+describe('DELETE /v1/personalization/bookmarks', () => {
+  it('returns 204 on successful bookmark removal', async () => {
+    asUser(APPLICANT);
+    personalizationService.removeBookmark.mockResolvedValueOnce(undefined);
+
+    const res = await request(server)
+      .delete('/v1/personalization/bookmarks')
+      .set('Authorization', 'Bearer token')
+      .set('Idempotency-Key', 'bm-del-1')
+      .send({ entityType: 'university', stableId: STABLE_ID });
+
+    expect(res.status).toBe(204);
+  });
+
+  it('returns 401 without Authorization header', async () => {
+    const res = await request(server)
+      .delete('/v1/personalization/bookmarks')
+      .send({ entityType: 'university', stableId: STABLE_ID });
+    expect(res.status).toBe(401);
+  });
+});
+
+// ── PUT /v1/personalization/preferences/:key ─────────────────────────────────
+
+describe('PUT /v1/personalization/preferences/:key', () => {
+  it('returns 200 with updated preference', async () => {
+    asUser(APPLICANT);
+    personalizationService.setPreference.mockResolvedValueOnce({
+      key: 'theme', value: 'dark',
+    });
+
+    const res = await request(server)
+      .put('/v1/personalization/preferences/theme')
+      .set('Authorization', 'Bearer token')
+      .set('Idempotency-Key', 'pref-set-1')
+      .send({ value: 'dark' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.key).toBe('theme');
+  });
+
+  it('returns 401 without Authorization header', async () => {
+    const res = await request(server)
+      .put('/v1/personalization/preferences/theme')
+      .send({ value: 'dark' });
+    expect(res.status).toBe(401);
+  });
+});
+
+// ── DELETE /v1/personalization/preferences/:key ──────────────────────────────
+
+describe('DELETE /v1/personalization/preferences/:key', () => {
+  it('returns 204 on successful preference delete', async () => {
+    asUser(APPLICANT);
+    personalizationService.deletePreference.mockResolvedValueOnce(undefined);
+
+    const res = await request(server)
+      .delete('/v1/personalization/preferences/theme')
+      .set('Authorization', 'Bearer token')
+      .set('Idempotency-Key', 'pref-del-1');
+
+    expect(res.status).toBe(204);
+  });
+
+  it('returns 401 without Authorization header', async () => {
+    const res = await request(server).delete('/v1/personalization/preferences/theme');
+    expect(res.status).toBe(401);
+  });
+});
+
+// ── GET /v1/personalization/subscriptions ────────────────────────────────────
+
+describe('GET /v1/personalization/subscriptions', () => {
+  it('returns 200 with tag subscription list', async () => {
+    asUser(APPLICANT);
+    personalizationService.getTagSubscriptions.mockResolvedValueOnce([
+      { id: '00000000-0000-0000-0000-000000000023', tag: 'ML', tag_type: 'topic' },
+    ]);
+
+    const res = await request(server)
+      .get('/v1/personalization/subscriptions')
+      .set('Authorization', 'Bearer token');
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toHaveLength(1);
+    expect(res.body.meta.total).toBe(1);
+  });
+
+  it('returns 401 without Authorization header', async () => {
+    const res = await request(server).get('/v1/personalization/subscriptions');
+    expect(res.status).toBe(401);
+  });
+});
+
+// ── DELETE /v1/personalization/subscriptions/:tag ────────────────────────────
+
+describe('DELETE /v1/personalization/subscriptions/:tag', () => {
+  it('returns 204 on successful subscription removal', async () => {
+    asUser(APPLICANT);
+    personalizationService.removeTagSubscription.mockResolvedValueOnce(undefined);
+
+    const res = await request(server)
+      .delete('/v1/personalization/subscriptions/ML')
+      .set('Authorization', 'Bearer token')
+      .set('Idempotency-Key', 'sub-del-1');
+
+    expect(res.status).toBe(204);
+  });
+
+  it('returns 401 without Authorization header', async () => {
+    const res = await request(server).delete('/v1/personalization/subscriptions/ML');
+    expect(res.status).toBe(401);
+  });
+});

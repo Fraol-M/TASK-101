@@ -272,3 +272,38 @@ describe('PUT /v1/scores/draft — score step and range validation', () => {
     expect(res.status).toBe(200);
   });
 });
+
+// ── GET /v1/scores/:assignmentId ─────────────────────────────────────────────
+
+describe('GET /v1/scores/:assignmentId', () => {
+  it('returns 200 with score for assignment', async () => {
+    asUser(REVIEWER);
+    scoringService.getByAssignment.mockResolvedValueOnce({
+      id: SCORE_ID, assignment_id: ASSIGN_ID, is_draft: false,
+    });
+
+    const res = await request(server)
+      .get(`/v1/scores/${ASSIGN_ID}`)
+      .set('Authorization', 'Bearer token');
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.id).toBe(SCORE_ID);
+    expect(res.body.meta.requestId).toBeDefined();
+  });
+
+  it('returns 400 when assignmentId is not a UUID', async () => {
+    asUser(REVIEWER);
+
+    const res = await request(server)
+      .get('/v1/scores/not-a-uuid')
+      .set('Authorization', 'Bearer token');
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('returns 401 without Authorization header', async () => {
+    const res = await request(server).get(`/v1/scores/${ASSIGN_ID}`);
+    expect(res.status).toBe(401);
+  });
+});

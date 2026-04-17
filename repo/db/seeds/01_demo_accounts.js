@@ -9,10 +9,12 @@ export async function seed(knex) {
   const hash = await bcrypt.hash('ChangeMe@Demo2026!', 12);
 
   const DEMO_ACCOUNTS = [
-    { username: 'admin',      roleName: 'SYSTEM_ADMIN' },
-    { username: 'reviewer1',  roleName: 'REVIEWER'     },
-    { username: 'reviewer2',  roleName: 'REVIEWER'     },
-    { username: 'applicant1', roleName: 'APPLICANT'    },
+    { username: 'admin',      roleName: 'SYSTEM_ADMIN'  },
+    { username: 'progadmin',  roleName: 'PROGRAM_ADMIN' },
+    { username: 'reviewer1',  roleName: 'REVIEWER'      },
+    { username: 'reviewer2',  roleName: 'REVIEWER'      },
+    { username: 'applicant1', roleName: 'APPLICANT'     },
+    { username: 'auditor',    roleName: 'READ_ONLY'     },
   ];
 
   for (const { username, roleName } of DEMO_ACCOUNTS) {

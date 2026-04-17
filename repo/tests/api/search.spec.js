@@ -193,6 +193,67 @@ describe('POST /v1/search/saved-queries/:id/run', () => {
   });
 });
 
+describe('GET /v1/search/saved-queries', () => {
+  it('returns 200 with saved query list', async () => {
+    asUser(REVIEWER);
+    savedQueriesService.list.mockResolvedValueOnce({
+      rows: [{ id: SQ_ID, name: 'My Query', query_text: 'AI' }],
+      total: 1,
+    });
+
+    const res = await request(server)
+      .get('/v1/search/saved-queries')
+      .set('Authorization', 'Bearer token');
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toHaveLength(1);
+    expect(res.body.meta.total).toBe(1);
+  });
+
+  it('returns 401 without Authorization header', async () => {
+    const res = await request(server).get('/v1/search/saved-queries');
+    expect(res.status).toBe(401);
+  });
+});
+
+describe('PATCH /v1/search/saved-queries/:id', () => {
+  it('returns 200 with updated saved query', async () => {
+    asUser(REVIEWER);
+    savedQueriesService.update.mockResolvedValueOnce({
+      id: SQ_ID, name: 'Updated Query', query_text: 'machine learning',
+    });
+
+    const res = await request(server)
+      .patch(`/v1/search/saved-queries/${SQ_ID}`)
+      .set('Authorization', 'Bearer token')
+      .set('Idempotency-Key', 'sq-patch-1')
+      .send({ name: 'Updated Query' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.name).toBe('Updated Query');
+  });
+
+  it('returns 400 when body is empty', async () => {
+    asUser(REVIEWER);
+
+    const res = await request(server)
+      .patch(`/v1/search/saved-queries/${SQ_ID}`)
+      .set('Authorization', 'Bearer token')
+      .set('Idempotency-Key', 'sq-patch-2')
+      .send({});
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('returns 401 without Authorization header', async () => {
+    const res = await request(server)
+      .patch(`/v1/search/saved-queries/${SQ_ID}`)
+      .send({ name: 'X' });
+    expect(res.status).toBe(401);
+  });
+});
+
 describe('DELETE /v1/search/saved-queries/:id', () => {
   it('returns 204 on successful delete', async () => {
     asUser(REVIEWER);
